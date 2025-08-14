@@ -3,7 +3,6 @@ GitHub Actions workflow parser module
 """
 
 import yaml
-import shutil
 from pathlib import Path
 from typing import List, Dict, Any
 import logging
@@ -60,15 +59,9 @@ class WorkflowParser:
         
         return actions
     
-    def save_workflow(self, workflow_path: Path, workflow: Workflow, backup: bool = True) -> None:
+    def save_workflow(self, workflow_path: Path, workflow: Workflow) -> None:
         """Save the modified workflow back to file."""
         try:
-            # Create backup if requested
-            if backup:
-                backup_path = workflow_path.with_suffix(f"{workflow_path.suffix}.backup")
-                shutil.copy2(workflow_path, backup_path)
-                self.logger.info(f"Created backup: {backup_path}")
-            
             # Get modified content
             modified_content = workflow._get_modified_content_with_comments(workflow_path)
             

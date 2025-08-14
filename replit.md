@@ -34,8 +34,6 @@ Preferred communication style: Simple, everyday language.
 
 **Rate Limiting**: GitHub API client implements proper rate limiting to respect GitHub's API limits, with automatic backoff and retry mechanisms.
 
-**Backup Support**: Creates backups of original workflow files before modification to ensure recovery capability.
-
 # External Dependencies
 
 **GitHub API**: Uses GitHub's REST API v3 to resolve action versions and retrieve commit SHAs. Supports authentication via GitHub tokens for higher rate limits.

@@ -98,17 +98,6 @@ def format_file_size(size_bytes: int) -> str:
     return f"{size_bytes:.1f} TB"
 
 
-def create_backup_filename(original_path: Path, suffix: str = "backup") -> Path:
-    """Create a backup filename for the given path."""
-    timestamp = ""
-    if suffix == "backup":
-        import datetime
-        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        suffix = f"backup_{timestamp}"
-    
-    return original_path.with_suffix(f".{suffix}{original_path.suffix}")
-
-
 def ensure_directory_exists(directory: Path) -> None:
     """Ensure a directory exists, creating it if necessary."""
     directory.mkdir(parents=True, exist_ok=True)

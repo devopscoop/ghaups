@@ -46,18 +46,7 @@ Examples:
         action="store_true",
         help="Scan actions for vulnerabilities using Trivy"
     )
-    parser.add_argument(
-        "--backup", "-b",
-        action="store_true",
-        default=True,
-        help="Create backup of original files before modification (default: True)"
-    )
-    parser.add_argument(
-        "--no-backup",
-        action="store_false",
-        dest="backup",
-        help="Skip creating backup files"
-    )
+
     
     # Output options
     parser.add_argument(
@@ -156,7 +145,7 @@ def process_workflows(
                 
                 # Save modified workflow if not dry run
                 if pinned_actions and not args.dry_run:
-                    parser.save_workflow(workflow_file, modified_workflow, backup=args.backup)
+                    parser.save_workflow(workflow_file, modified_workflow)
             
             # Scan for vulnerabilities if requested
             if args.scan_vulnerabilities and trivy_scanner:
