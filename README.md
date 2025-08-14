@@ -27,7 +27,8 @@ The tool:
 2. Checks the latest version by following the GitHub releases/latest redirect
 3. Fetches the SHA commit hash for that version via GitHub API
 4. Updates the workflow file with the SHA and version comment (e.g., `actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 #v5.0.0`)
-5. Reports what was updated
+5. Scans each action repository for HIGH/CRITICAL vulnerabilities using Trivy
+6. Reports what was updated and any security issues found
 
 ## Example Output
 
@@ -50,3 +51,4 @@ Summary: Updated 3 actions across 1 files
 
 - Python 3.7+
 - `requests` library
+- `trivy` (for vulnerability scanning)

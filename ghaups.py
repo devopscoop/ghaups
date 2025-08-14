@@ -8,6 +8,7 @@ A simple CLI tool that updates GitHub Actions in workflow files to their latest 
 import sys
 import re
 import requests
+import subprocess
 from pathlib import Path
 from typing import List, Tuple, Optional
 
@@ -65,6 +66,52 @@ def get_latest_version_and_sha(owner: str, repo: str) -> Optional[Tuple[str, str
         return None
 
 
+def scan_action_with_trivy(owner: str, repo: str, sha: str) -> bool:
+    """
+    Scan a GitHub Action repository for vulnerabilities using Trivy.
+    
+    Args:
+        owner: GitHub repository owner
+        repo: GitHub repository name
+        sha: Git commit SHA to scan
+        
+    Returns:
+        True if scan passed (no HIGH/CRITICAL vulnerabilities), False otherwise
+    """
+    try:
+        repo_url = f"https://github.com/{owner}/{repo}"
+        cmd = [
+            "trivy", "repository",
+            "--scanners", "vuln",
+            "--severity", "HIGH,CRITICAL",
+            "--exit-code", "1",
+            "--commit", sha,
+            repo_url
+        ]
+        
+        print(f"    Scanning {owner}/{repo}@{sha} for vulnerabilities...")
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+        
+        if result.returncode == 0:
+            print(f"    ✓ No HIGH/CRITICAL vulnerabilities found in {owner}/{repo}")
+            return True
+        else:
+            print(f"    ✗ HIGH/CRITICAL vulnerabilities found in {owner}/{repo}")
+            if result.stdout:
+                print(f"    Trivy output:\n{result.stdout}")
+            return False
+            
+    except subprocess.TimeoutExpired:
+        print(f"    ⚠ Trivy scan timed out for {owner}/{repo}")
+        return False
+    except FileNotFoundError:
+        print(f"    ⚠ Trivy not found. Please install Trivy to enable vulnerability scanning.")
+        return False
+    except Exception as e:
+        print(f"    ⚠ Error scanning {owner}/{repo}: {e}")
+        return False
+
+
 def parse_action_reference(uses_line: str) -> Optional[Tuple[str, str, str]]:
     """
     Parse a GitHub Action reference from a 'uses' line.
@@ -86,15 +133,15 @@ def parse_action_reference(uses_line: str) -> Optional[Tuple[str, str, str]]:
     return None
 
 
-def update_workflow_file(file_path: Path) -> int:
+def update_workflow_file(file_path: Path) -> Tuple[int, int]:
     """
-    Update a single workflow file with the latest action versions.
+    Update a single workflow file with the latest action versions and scan for vulnerabilities.
     
     Args:
         file_path: Path to the workflow file
         
     Returns:
-        Number of actions updated
+        Tuple of (actions updated, actions with vulnerabilities)
     """
     print(f"Processing {file_path}")
     
@@ -103,10 +150,12 @@ def update_workflow_file(file_path: Path) -> int:
             lines = f.readlines()
     except Exception as e:
         print(f"Error reading {file_path}: {e}")
-        return 0
+        return 0, 0
     
     updated_count = 0
+    vuln_count = 0
     modified_lines = []
+    actions_to_scan = []  # Store actions for scanning after updates
     
     for line in lines:
         modified_line = line
@@ -128,8 +177,14 @@ def update_workflow_file(file_path: Path) -> int:
                         new_ref = f"{owner}/{repo}@{sha} #{latest_version}"
                         modified_line = line.replace(old_ref, new_ref)
                         updated_count += 1
+                        # Add to scan list with new SHA
+                        actions_to_scan.append((owner, repo, sha))
                     else:
                         print(f"  Already up to date: {owner}/{repo}@{current_version}")
+                        # Still scan current version
+                        # Extract SHA from current version if it's already a SHA
+                        if len(current_version) == 40 and all(c in '0123456789abcdef' for c in current_version):
+                            actions_to_scan.append((owner, repo, current_version))
                 else:
                     print(f"  Could not determine latest version for {owner}/{repo}")
         
@@ -143,9 +198,17 @@ def update_workflow_file(file_path: Path) -> int:
             print(f"  Updated {updated_count} actions in {file_path}")
         except Exception as e:
             print(f"Error writing {file_path}: {e}")
-            return 0
+            return 0, 0
     
-    return updated_count
+    # Scan actions for vulnerabilities
+    if actions_to_scan:
+        print(f"  Scanning {len(actions_to_scan)} actions for vulnerabilities...")
+        for owner, repo, sha in actions_to_scan:
+            scan_passed = scan_action_with_trivy(owner, repo, sha)
+            if not scan_passed:
+                vuln_count += 1
+    
+    return updated_count, vuln_count
 
 
 def main():
@@ -155,10 +218,15 @@ def main():
         print("\nExample:")
         print("  python ghaups.py .github/workflows/ci.yml")
         print("  python ghaups.py workflow1.yml workflow2.yml")
+        print("\nThis tool will:")
+        print("  1. Update GitHub Actions to latest versions")
+        print("  2. Pin them using SHA commits with version comments")
+        print("  3. Scan each action for HIGH/CRITICAL vulnerabilities using Trivy")
         sys.exit(1)
     
     workflow_files = sys.argv[1:]
     total_updated = 0
+    total_vulnerabilities = 0
     
     print("ghaups (GitHub Actions Update, Pin, and Scan)")
     print("=" * 50)
@@ -174,11 +242,20 @@ def main():
             print(f"Error: Not a file: {file_path}")
             continue
         
-        updated_count = update_workflow_file(file_path)
+        updated_count, vuln_count = update_workflow_file(file_path)
         total_updated += updated_count
+        total_vulnerabilities += vuln_count
         print()  # Empty line between files
     
-    print(f"Summary: Updated {total_updated} actions across {len(workflow_files)} files")
+    print(f"Summary:")
+    print(f"  • Updated {total_updated} actions across {len(workflow_files)} files")
+    print(f"  • Found {total_vulnerabilities} actions with HIGH/CRITICAL vulnerabilities")
+    
+    if total_vulnerabilities > 0:
+        print(f"\n⚠ Warning: {total_vulnerabilities} actions have security vulnerabilities!")
+        sys.exit(1)
+    else:
+        print(f"\n✓ All actions are secure!")
 
 
 if __name__ == "__main__":
