@@ -12,28 +12,52 @@ from pathlib import Path
 from typing import List, Tuple, Optional
 
 
-def get_latest_version(owner: str, repo: str) -> Optional[str]:
+def get_latest_version_and_sha(owner: str, repo: str) -> Optional[Tuple[str, str]]:
     """
-    Get the latest version of a GitHub Action by following the releases/latest redirect.
+    Get the latest version and SHA of a GitHub Action.
     
     Args:
         owner: GitHub repository owner
         repo: GitHub repository name
         
     Returns:
-        Latest version string (e.g., "v4.3.1") or None if not found
+        Tuple of (version, sha) or None if not found
     """
     try:
+        # First, get the latest version by following releases/latest redirect
         url = f"https://github.com/{owner}/{repo}/releases/latest"
         response = requests.get(url, allow_redirects=True, timeout=10)
         
-        if response.status_code == 200:
-            # Extract version from the final URL after redirect
-            # URL format: https://github.com/owner/repo/releases/tag/v1.2.3
-            final_url = response.url
-            match = re.search(r'/releases/tag/(.+)$', final_url)
-            if match:
-                return match.group(1)
+        if response.status_code != 200:
+            return None
+            
+        # Extract version from the final URL after redirect
+        final_url = response.url
+        match = re.search(r'/releases/tag/(.+)$', final_url)
+        if not match:
+            return None
+            
+        version = match.group(1)
+        
+        # Now get the SHA for this tag using GitHub API
+        api_url = f"https://api.github.com/repos/{owner}/{repo}/git/ref/tags/{version}"
+        api_response = requests.get(api_url, timeout=10)
+        
+        if api_response.status_code == 200:
+            tag_data = api_response.json()
+            sha = tag_data.get('object', {}).get('sha')
+            if sha:
+                return version, sha
+        
+        # Fallback: try to get SHA from the tag reference directly
+        ref_url = f"https://api.github.com/repos/{owner}/{repo}/git/refs/tags/{version}"
+        ref_response = requests.get(ref_url, timeout=10)
+        
+        if ref_response.status_code == 200:
+            ref_data = ref_response.json()
+            sha = ref_data.get('object', {}).get('sha')
+            if sha:
+                return version, sha
         
         return None
     except Exception as e:
@@ -51,8 +75,8 @@ def parse_action_reference(uses_line: str) -> Optional[Tuple[str, str, str]]:
     Returns:
         Tuple of (owner, repo, current_version) or None if not a GitHub action
     """
-    # Match patterns like: owner/repo@version
-    match = re.search(r'uses:\s*["\']?([^/]+)/([^@\s"\']+)@([^"\'\s]+)["\']?', uses_line)
+    # Match patterns like: owner/repo@version or owner/repo@sha #version
+    match = re.search(r'uses:\s*["\']?([^/]+)/([^@\s"\']+)@([^"\'\s#]+)', uses_line)
     if match:
         owner, repo, version = match.groups()
         # Only process GitHub actions (not local actions or Docker actions)
@@ -94,19 +118,20 @@ def update_workflow_file(file_path: Path) -> int:
                 owner, repo, current_version = action_info
                 print(f"  Found action: {owner}/{repo}@{current_version}")
                 
-                latest_version = get_latest_version(owner, repo)
-                if latest_version and latest_version != current_version:
-                    print(f"  Updating to: {owner}/{repo}@{latest_version}")
-                    # Replace the version in the line
-                    old_ref = f"{owner}/{repo}@{current_version}"
-                    new_ref = f"{owner}/{repo}@{latest_version}"
-                    modified_line = line.replace(old_ref, new_ref)
-                    updated_count += 1
-                else:
-                    if latest_version == current_version:
-                        print(f"  Already up to date: {owner}/{repo}@{current_version}")
+                result = get_latest_version_and_sha(owner, repo)
+                if result:
+                    latest_version, sha = result
+                    if latest_version != current_version:
+                        print(f"  Updating to: {owner}/{repo}@{sha} #{latest_version}")
+                        # Replace the version in the line with SHA and version comment
+                        old_ref = f"{owner}/{repo}@{current_version}"
+                        new_ref = f"{owner}/{repo}@{sha} #{latest_version}"
+                        modified_line = line.replace(old_ref, new_ref)
+                        updated_count += 1
                     else:
-                        print(f"  Could not determine latest version for {owner}/{repo}")
+                        print(f"  Already up to date: {owner}/{repo}@{current_version}")
+                else:
+                    print(f"  Could not determine latest version for {owner}/{repo}")
         
         modified_lines.append(modified_line)
     

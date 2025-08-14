@@ -1,12 +1,13 @@
 # Overview
 
-This is ghaups (GitHub Actions Update, Pin, and Scan), a simple CLI tool that updates GitHub Actions in workflow files to their latest versions. The tool takes workflow file paths as arguments and automatically updates outdated action references by checking GitHub's releases/latest redirects.
+This is ghaups (GitHub Actions Update, Pin, and Scan), a simple CLI tool that updates GitHub Actions in workflow files to their latest versions and pins them using SHA commits. The tool takes workflow file paths as arguments and automatically updates outdated action references by checking GitHub's releases/latest redirects, then fetches the corresponding SHA and formats the output as "owner/repo@sha #version".
 
 ## Status: COMPLETED ✓
 The tool is fully functional with:
 - Simple CLI interface taking workflow file arguments
 - Automatic detection of GitHub Actions in workflow files
 - Latest version lookup via GitHub releases/latest redirects
+- SHA commit pinning with version comments (e.g., `@sha #v1.2.3`)
 - In-place file updates with clear progress reporting
 - Support for multiple files in single command
 - Clean, production-ready single-file implementation
