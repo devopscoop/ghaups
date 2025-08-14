@@ -30,7 +30,7 @@ Preferred communication style: Simple, everyday language.
 
 ## Security Design Patterns
 
-**Action Pinning Strategy**: Converts semantic version references (like @v3) to specific SHA commits to prevent supply chain attacks where action maintainers could modify tagged versions.
+**Action Pinning Strategy**: Converts semantic version references (like @v3) to specific SHA commits to prevent supply chain attacks where action maintainers could modify tagged versions. Preserves original version information in comments for maintainability (e.g., `actions/checkout@f43a0e5f... # v3`).
 
 **Rate Limiting**: GitHub API client implements proper rate limiting to respect GitHub's API limits, with automatic backoff and retry mechanisms.
 

@@ -73,7 +73,11 @@ class Action:
         if not self.is_github_action:
             return self.original_uses
         
-        return f"{self.owner}/{self.repo}@{self.ref}"
+        # If the action has been pinned (SHA != original ref), add comment with original version
+        if self.ref != self.original_ref and self.original_ref:
+            return f"{self.owner}/{self.repo}@{self.ref} # {self.original_ref}"
+        else:
+            return f"{self.owner}/{self.repo}@{self.ref}"
     
     def __str__(self) -> str:
         if self.is_github_action:

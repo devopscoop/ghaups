@@ -5,7 +5,7 @@ A Python security tool that analyzes GitHub Actions workflows, pins actions to s
 ## Features
 
 - **Workflow Analysis**: Parse GitHub Actions workflow YAML files
-- **Action Pinning**: Automatically pin actions to specific SHA commits for security
+- **Action Pinning**: Automatically pin actions to specific SHA commits for security with version comments (e.g., `actions/checkout@f43a0e5f... # v3`)
 - **Vulnerability Scanning**: Integrate with Trivy to scan action repositories for vulnerabilities
 - **Backup Support**: Create backups of original workflow files before modification
 - **GitHub API Integration**: Resolve action versions using GitHub API
