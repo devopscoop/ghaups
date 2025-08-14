@@ -123,7 +123,7 @@ def parse_action_reference(uses_line: str) -> Optional[Tuple[str, str, str]]:
         Tuple of (owner, repo, current_version) or None if not a GitHub action
     """
     # Match patterns like: owner/repo@version or owner/repo@sha #version
-    match = re.search(r'uses:\s*["\']?([^/]+)/([^@\s"\']+)@([^"\'\s#]+)', uses_line)
+    match = re.search(r'uses:\s+["\']?([^/]+)/([^@\s"\']+)@([^"\'\s#]+)', uses_line)
     if match:
         owner, repo, version = match.groups()
         # Only process GitHub actions (not local actions or Docker actions)
@@ -171,11 +171,11 @@ def update_workflow_file(file_path: Path) -> Tuple[int, int]:
                 if result:
                     latest_version, sha = result
                     if latest_version != current_version:
-                        print(f"  Updating to: {owner}/{repo}@{sha} #{latest_version}")
+                        print(f"  Updating to: {owner}/{repo}@{sha} # {latest_version}")
                         # Replace the version in the line with SHA and version comment
                         old_ref = f"{owner}/{repo}@{current_version}"
-                        new_ref = f"{owner}/{repo}@{sha} #{latest_version}"
-                        modified_line = line.replace(old_ref, new_ref)
+                        new_ref = f"{owner}/{repo}@{sha} # {latest_version}"
+                        modified_line = re.sub(f"{old_ref}.*", new_ref, line)
                         updated_count += 1
                         # Add to scan list with new SHA
                         actions_to_scan.append((owner, repo, sha))
