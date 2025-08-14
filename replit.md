@@ -1,17 +1,15 @@
 # Overview
 
-This is ghaups (GitHub Actions Update, Pin, and Scan), a Python-based security tool designed to analyze GitHub Actions workflows for security vulnerabilities and best practices. The tool focuses on two main security features: automatically pinning GitHub Actions to specific SHA commits (preventing supply chain attacks) and scanning action repositories for known vulnerabilities using Trivy. It provides a command-line interface for processing individual workflow files or entire directories containing GitHub Actions workflows.
+This is ghaups (GitHub Actions Update, Pin, and Scan), a simple CLI tool that updates GitHub Actions in workflow files to their latest versions. The tool takes workflow file paths as arguments and automatically updates outdated action references by checking GitHub's releases/latest redirects.
 
 ## Status: COMPLETED ✓
 The tool is fully functional with:
-- Complete CLI interface with help documentation
-- Action pinning with version comments
-- Vulnerability scanning with Trivy integration  
-- Single file and directory processing
-- Dry-run mode for safe testing
-- JSON output for reports
-- All LSP diagnostics resolved
-- Clean, production-ready codebase
+- Simple CLI interface taking workflow file arguments
+- Automatic detection of GitHub Actions in workflow files
+- Latest version lookup via GitHub releases/latest redirects
+- In-place file updates with clear progress reporting
+- Support for multiple files in single command
+- Clean, production-ready single-file implementation
 
 # User Preferences
 

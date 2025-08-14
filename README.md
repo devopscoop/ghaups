@@ -1,57 +1,51 @@
 # ghaups (GitHub Actions Update, Pin, and Scan)
 
-A Python security tool that analyzes GitHub Actions workflows, pins actions to specific SHAs, and scans for vulnerabilities using Trivy.
-
-## Features
-
-- **Workflow Analysis**: Parse GitHub Actions workflow YAML files
-- **Action Pinning**: Automatically pin actions to specific SHA commits for security with version comments (e.g., `actions/checkout@f43a0e5f... # v3`)
-- **Vulnerability Scanning**: Integrate with Trivy to scan action repositories for vulnerabilities
-
-- **GitHub API Integration**: Resolve action versions using GitHub API
-- **Command-line Interface**: Easy-to-use CLI with comprehensive options
-
-## Installation
-
-1. **Clone the repository**:
-   ```bash
-   git clone <repository-url>
-   cd ghaups
-   ```
-
-2. **Install Python dependencies**:
-   ```bash
-   pip install PyYAML requests
-   ```
-
-3. **Install Trivy** (required for vulnerability scanning):
-   
-   **Linux**:
-   ```bash
-   sudo apt-get install wget apt-transport-https gnupg lsb-release
-   wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | sudo apt-key add -
-   echo "deb https://aquasecurity.github.io/trivy-repo/deb $(lsb_release -sc) main" | sudo tee -a /etc/apt/sources.list.d/trivy.list
-   sudo apt-get update
-   sudo apt-get install trivy
-   ```
-   
-   **macOS**:
-   ```bash
-   brew install trivy
-   ```
-   
-   **Windows**:
-   Download from [Trivy releases](https://github.com/aquasecurity/trivy/releases)
-
-4. **Set up GitHub token** (optional but recommended):
-   ```bash
-   export GITHUB_TOKEN=your_github_token_here
-   ```
+A simple CLI tool that updates GitHub Actions in workflow files to their latest versions.
 
 ## Usage
 
-### Basic Examples
-
-**Pin actions in a single workflow file**:
 ```bash
-python main.py --workflow-file .github/workflows/ci.yml --pin-actions
+python ghaups.py <workflow_file1> [workflow_file2] ...
+```
+
+## Examples
+
+Update a single workflow file:
+```bash
+python ghaups.py .github/workflows/ci.yml
+```
+
+Update multiple workflow files:
+```bash
+python ghaups.py workflow1.yml workflow2.yml workflow3.yml
+```
+
+## What it does
+
+The tool:
+1. Scans each provided workflow file for GitHub Actions (e.g., `actions/checkout@v3.0.0`)
+2. Checks the latest version by following the GitHub releases/latest redirect
+3. Updates the workflow file with the latest version
+4. Reports what was updated
+
+## Example Output
+
+```
+ghaups (GitHub Actions Update, Pin, and Scan)
+==================================================
+Processing test-workflow.yml
+  Found action: actions/checkout@v3.0.0
+  Updating to: actions/checkout@v5.0.0
+  Found action: actions/setup-node@v3.5.1  
+  Updating to: actions/setup-node@v4.4.0
+  Found action: aws-actions/configure-aws-credentials@v3.0.2
+  Updating to: aws-actions/configure-aws-credentials@v4.3.1
+  Updated 3 actions in test-workflow.yml
+
+Summary: Updated 3 actions across 1 files
+```
+
+## Requirements
+
+- Python 3.7+
+- `requests` library

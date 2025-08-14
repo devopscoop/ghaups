@@ -1,0 +1,160 @@
+#!/usr/bin/env python3
+"""
+ghaups (GitHub Actions Update, Pin, and Scan)
+
+A simple CLI tool that updates GitHub Actions in workflow files to their latest versions.
+"""
+
+import sys
+import re
+import requests
+from pathlib import Path
+from typing import List, Tuple, Optional
+
+
+def get_latest_version(owner: str, repo: str) -> Optional[str]:
+    """
+    Get the latest version of a GitHub Action by following the releases/latest redirect.
+    
+    Args:
+        owner: GitHub repository owner
+        repo: GitHub repository name
+        
+    Returns:
+        Latest version string (e.g., "v4.3.1") or None if not found
+    """
+    try:
+        url = f"https://github.com/{owner}/{repo}/releases/latest"
+        response = requests.get(url, allow_redirects=True, timeout=10)
+        
+        if response.status_code == 200:
+            # Extract version from the final URL after redirect
+            # URL format: https://github.com/owner/repo/releases/tag/v1.2.3
+            final_url = response.url
+            match = re.search(r'/releases/tag/(.+)$', final_url)
+            if match:
+                return match.group(1)
+        
+        return None
+    except Exception as e:
+        print(f"Error fetching latest version for {owner}/{repo}: {e}")
+        return None
+
+
+def parse_action_reference(uses_line: str) -> Optional[Tuple[str, str, str]]:
+    """
+    Parse a GitHub Action reference from a 'uses' line.
+    
+    Args:
+        uses_line: The line containing the action reference
+        
+    Returns:
+        Tuple of (owner, repo, current_version) or None if not a GitHub action
+    """
+    # Match patterns like: owner/repo@version
+    match = re.search(r'uses:\s*["\']?([^/]+)/([^@\s"\']+)@([^"\'\s]+)["\']?', uses_line)
+    if match:
+        owner, repo, version = match.groups()
+        # Only process GitHub actions (not local actions or Docker actions)
+        if '.' not in owner:  # Simple check to exclude Docker actions
+            return owner, repo, version
+    
+    return None
+
+
+def update_workflow_file(file_path: Path) -> int:
+    """
+    Update a single workflow file with the latest action versions.
+    
+    Args:
+        file_path: Path to the workflow file
+        
+    Returns:
+        Number of actions updated
+    """
+    print(f"Processing {file_path}")
+    
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            lines = f.readlines()
+    except Exception as e:
+        print(f"Error reading {file_path}: {e}")
+        return 0
+    
+    updated_count = 0
+    modified_lines = []
+    
+    for line in lines:
+        modified_line = line
+        
+        # Check if this line contains a 'uses' statement
+        if 'uses:' in line:
+            action_info = parse_action_reference(line)
+            if action_info:
+                owner, repo, current_version = action_info
+                print(f"  Found action: {owner}/{repo}@{current_version}")
+                
+                latest_version = get_latest_version(owner, repo)
+                if latest_version and latest_version != current_version:
+                    print(f"  Updating to: {owner}/{repo}@{latest_version}")
+                    # Replace the version in the line
+                    old_ref = f"{owner}/{repo}@{current_version}"
+                    new_ref = f"{owner}/{repo}@{latest_version}"
+                    modified_line = line.replace(old_ref, new_ref)
+                    updated_count += 1
+                else:
+                    if latest_version == current_version:
+                        print(f"  Already up to date: {owner}/{repo}@{current_version}")
+                    else:
+                        print(f"  Could not determine latest version for {owner}/{repo}")
+        
+        modified_lines.append(modified_line)
+    
+    # Write back the modified content
+    if updated_count > 0:
+        try:
+            with open(file_path, 'w', encoding='utf-8') as f:
+                f.writelines(modified_lines)
+            print(f"  Updated {updated_count} actions in {file_path}")
+        except Exception as e:
+            print(f"Error writing {file_path}: {e}")
+            return 0
+    
+    return updated_count
+
+
+def main():
+    """Main entry point for ghaups CLI."""
+    if len(sys.argv) < 2:
+        print("Usage: python ghaups.py <workflow_file1> [workflow_file2] ...")
+        print("\nExample:")
+        print("  python ghaups.py .github/workflows/ci.yml")
+        print("  python ghaups.py workflow1.yml workflow2.yml")
+        sys.exit(1)
+    
+    workflow_files = sys.argv[1:]
+    total_updated = 0
+    
+    print("ghaups (GitHub Actions Update, Pin, and Scan)")
+    print("=" * 50)
+    
+    for file_path_str in workflow_files:
+        file_path = Path(file_path_str)
+        
+        if not file_path.exists():
+            print(f"Error: File not found: {file_path}")
+            continue
+        
+        if not file_path.is_file():
+            print(f"Error: Not a file: {file_path}")
+            continue
+        
+        updated_count = update_workflow_file(file_path)
+        total_updated += updated_count
+        print()  # Empty line between files
+    
+    print(f"Summary: Updated {total_updated} actions across {len(workflow_files)} files")
+
+
+if __name__ == "__main__":
+    main()

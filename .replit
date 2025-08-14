@@ -36,7 +36,7 @@ author = "agent"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "pip install PyYAML requests && python main.py --help"
+args = "echo \"ghaups tool ready. Usage: python ghaups.py <workflow_files...>\""
 
 [workflows.workflow.metadata]
 outputType = "console"
