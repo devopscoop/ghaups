@@ -16,22 +16,11 @@ author = "agent"
 
 [[workflows.workflow.tasks]]
 task = "workflow.run"
-args = "GitHub Actions Security Tool"
+args = "github_actions_security_tool"
 
 [[workflows.workflow.tasks]]
 task = "workflow.run"
-args = "github_actions_security_tool"
-
-[[workflows.workflow]]
-name = "GitHub Actions Security Tool"
-author = "agent"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "pip install PyYAML requests && python main.py --help"
-
-[workflows.workflow.metadata]
-outputType = "console"
+args = "ghaups"
 
 [[workflows.workflow]]
 name = "github_actions_security_tool"
@@ -40,3 +29,14 @@ author = "agent"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "pip install PyYAML requests"
+
+[[workflows.workflow]]
+name = "ghaups"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "pip install PyYAML requests && python main.py --help"
+
+[workflows.workflow.metadata]
+outputType = "console"

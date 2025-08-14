@@ -1,7 +1,3 @@
-"""
-Command-line interface for GitHub Actions Security Tool
-"""
-
 import argparse
 import logging
 import sys
@@ -13,11 +9,10 @@ from .github_api import GitHubAPI
 from .trivy_scanner import TrivyScanner
 from .utils import setup_logging, find_workflow_files
 
-
 def create_parser() -> argparse.ArgumentParser:
     """Create and configure the argument parser."""
     parser = argparse.ArgumentParser(
-        description="GitHub Actions Security Tool - Analyze and secure workflow files",
+        description="ghaups (GitHub Actions Update, Pin, and Scan)",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:

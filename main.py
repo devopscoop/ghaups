@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-GitHub Actions Security Tool - Main Entry Point
+ghaups (GitHub Actions Update, Pin, and Scan) - Main Entry Point
 """
 
 import sys

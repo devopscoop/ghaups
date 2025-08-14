@@ -1,4 +1,4 @@
-# GitHub Actions Security Tool
+# ghaups (GitHub Actions Update, Pin, and Scan)
 
 A Python security tool that analyzes GitHub Actions workflows, pins actions to specific SHAs, and scans for vulnerabilities using Trivy.
 
@@ -16,7 +16,7 @@ A Python security tool that analyzes GitHub Actions workflows, pins actions to s
 1. **Clone the repository**:
    ```bash
    git clone <repository-url>
-   cd github-actions-security-tool
+   cd ghaups
    ```
 
 2. **Install Python dependencies**:
