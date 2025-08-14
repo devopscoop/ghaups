@@ -89,7 +89,7 @@ def validate_workflow_file(file_path: Path) -> bool:
         return False
 
 
-def format_file_size(size_bytes: int) -> str:
+def format_file_size(size_bytes: float) -> str:
     """Format file size in human-readable format."""
     for unit in ['B', 'KB', 'MB', 'GB']:
         if size_bytes < 1024.0:

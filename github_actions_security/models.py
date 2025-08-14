@@ -118,8 +118,8 @@ class Vulnerability:
     """Represents a security vulnerability found in an action."""
     
     def __init__(self, vuln_id: str, severity: str, title: str, description: str, 
-                 package: str = None, installed_version: str = None, 
-                 fixed_version: str = None):
+                 package: Optional[str] = None, installed_version: Optional[str] = None, 
+                 fixed_version: Optional[str] = None):
         self.vuln_id = vuln_id
         self.severity = severity
         self.title = title

@@ -3,7 +3,6 @@ import logging
 import sys
 from pathlib import Path
 from typing import List, Optional
-
 from .workflow_parser import WorkflowParser
 from .github_api import GitHubAPI
 from .trivy_scanner import TrivyScanner
@@ -46,7 +45,6 @@ Examples:
         action="store_true",
         help="Scan actions for vulnerabilities using Trivy"
     )
-
     
     # Output options
     parser.add_argument(
@@ -74,7 +72,6 @@ Examples:
     
     return parser
 
-
 def validate_args(args: argparse.Namespace) -> None:
     """Validate command-line arguments."""
     if not args.pin_actions and not args.scan_vulnerabilities:
@@ -85,7 +82,6 @@ def validate_args(args: argparse.Namespace) -> None:
     
     if args.workflow_dir and not args.workflow_dir.exists():
         raise FileNotFoundError(f"Workflow directory not found: {args.workflow_dir}")
-
 
 def process_workflows(
     workflow_files: List[Path],
@@ -123,7 +119,7 @@ def process_workflows(
                 modified_workflow = workflow
                 
                 for action in workflow.actions:
-                    if action.needs_pinning():
+                    if action.needs_pinning() and action.owner and action.repo and action.ref:
                         try:
                             latest_sha = github_api.get_latest_sha(action.owner, action.repo, action.ref)
                             action.pin_to_sha(latest_sha)
@@ -150,18 +146,19 @@ def process_workflows(
             # Scan for vulnerabilities if requested
             if args.scan_vulnerabilities and trivy_scanner:
                 for action in workflow.actions:
-                    try:
-                        vulnerabilities = trivy_scanner.scan_action(action.owner, action.repo, action.ref)
-                        if vulnerabilities:
-                            file_result["vulnerabilities"].extend(vulnerabilities)
-                            logging.warning(f"Found {len(vulnerabilities)} vulnerabilities in {action.owner}/{action.repo}")
-                    except Exception as e:
-                        logging.error(f"Failed to scan {action.owner}/{action.repo}: {e}")
-                        results["errors"].append({
-                            "file": str(workflow_file),
-                            "action": f"{action.owner}/{action.repo}",
-                            "error": str(e)
-                        })
+                    if action.owner and action.repo and action.ref:
+                        try:
+                            vulnerabilities = trivy_scanner.scan_action(action.owner, action.repo, action.ref)
+                            if vulnerabilities:
+                                file_result["vulnerabilities"].extend(vulnerabilities)
+                                logging.warning(f"Found {len(vulnerabilities)} vulnerabilities in {action.owner}/{action.repo}")
+                        except Exception as e:
+                            logging.error(f"Failed to scan {action.owner}/{action.repo}: {e}")
+                            results["errors"].append({
+                                "file": str(workflow_file),
+                                "action": f"{action.owner}/{action.repo}",
+                                "error": str(e)
+                            })
             
             results["processed_files"].append(file_result)
             

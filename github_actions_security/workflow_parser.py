@@ -63,7 +63,7 @@ class WorkflowParser:
         """Save the modified workflow back to file."""
         try:
             # Get modified content
-            modified_content = workflow._get_modified_content_with_comments(workflow_path)
+            modified_content = self._get_modified_content_with_comments(workflow, workflow_path)
             
             # Write back to file
             with open(workflow_path, 'w', encoding='utf-8') as f:
@@ -101,36 +101,3 @@ class WorkflowParser:
             modified_lines.append(modified_line)
         
         return ''.join(modified_lines)
-
-
-# Monkey patch the Workflow class to add the method
-def _get_modified_content_with_comments(self, original_path: Path) -> str:
-    """Get modified workflow content while preserving comments and formatting."""
-    # Read original file content
-    with open(original_path, 'r', encoding='utf-8') as f:
-        original_lines = f.readlines()
-    
-    # Create mapping of old uses to new uses
-    uses_mapping = {}
-    for action in self.actions:
-        if action.original_uses != action.get_pinned_uses():
-            uses_mapping[action.original_uses] = action.get_pinned_uses()
-    
-    # Replace uses lines while preserving formatting
-    modified_lines = []
-    for line in original_lines:
-        modified_line = line
-        for old_uses, new_uses in uses_mapping.items():
-            if f"uses: {old_uses}" in line:
-                modified_line = line.replace(f"uses: {old_uses}", f"uses: {new_uses}")
-            elif f'uses: "{old_uses}"' in line:
-                modified_line = line.replace(f'uses: "{old_uses}"', f'uses: "{new_uses}"')
-            elif f"uses: '{old_uses}'" in line:
-                modified_line = line.replace(f"uses: '{old_uses}'", f"uses: '{new_uses}'")
-        
-        modified_lines.append(modified_line)
-    
-    return ''.join(modified_lines)
-
-# Add the method to the Workflow class
-Workflow._get_modified_content_with_comments = _get_modified_content_with_comments
