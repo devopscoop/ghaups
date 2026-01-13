@@ -7,16 +7,73 @@ A simple CLI tool that updates GitHub Actions in workflow files to their latest 
 
 import sys
 import re
+import json
 import argparse
 import requests
 import subprocess
 from pathlib import Path
 from typing import List, Tuple, Optional
+from datetime import datetime, timedelta
+
+CACHE_FILE = Path.home() / ".ghaups_cache.json"
+CACHE_EXPIRY_HOURS = 1
+
+
+def load_cache() -> dict:
+    """Load the cache from disk."""
+    if CACHE_FILE.exists():
+        try:
+            with open(CACHE_FILE, 'r') as f:
+                return json.load(f)
+        except (json.JSONDecodeError, IOError):
+            return {}
+    return {}
+
+
+def save_cache(cache: dict) -> None:
+    """Save the cache to disk."""
+    try:
+        with open(CACHE_FILE, 'w') as f:
+            json.dump(cache, f, indent=2)
+    except IOError:
+        pass
+
+
+def get_cached_version(owner: str, repo: str) -> Optional[Tuple[str, str]]:
+    """
+    Get version info from cache if available and not expired.
+    
+    Returns:
+        Tuple of (version, sha) or None if not cached or expired
+    """
+    cache = load_cache()
+    key = f"{owner}/{repo}"
+    
+    if key in cache:
+        entry = cache[key]
+        cached_time = datetime.fromisoformat(entry.get('timestamp', '2000-01-01'))
+        if datetime.now() - cached_time < timedelta(hours=CACHE_EXPIRY_HOURS):
+            return entry.get('version'), entry.get('sha')
+    
+    return None
+
+
+def set_cached_version(owner: str, repo: str, version: str, sha: str) -> None:
+    """Save version info to cache."""
+    cache = load_cache()
+    key = f"{owner}/{repo}"
+    cache[key] = {
+        'version': version,
+        'sha': sha,
+        'timestamp': datetime.now().isoformat()
+    }
+    save_cache(cache)
 
 
 def get_latest_version_and_sha(owner: str, repo: str) -> Optional[Tuple[str, str]]:
     """
     Get the latest version and SHA of a GitHub Action.
+    Uses local cache with 1-hour expiry to avoid rate limiting.
     
     Args:
         owner: GitHub repository owner
@@ -25,6 +82,11 @@ def get_latest_version_and_sha(owner: str, repo: str) -> Optional[Tuple[str, str
     Returns:
         Tuple of (version, sha) or None if not found
     """
+    # Check cache first
+    cached = get_cached_version(owner, repo)
+    if cached:
+        return cached
+    
     try:
         # First, get the latest version by following releases/latest redirect
         url = f"https://github.com/{owner}/{repo}/releases/latest"
@@ -49,6 +111,7 @@ def get_latest_version_and_sha(owner: str, repo: str) -> Optional[Tuple[str, str
             tag_data = api_response.json()
             sha = tag_data.get('object', {}).get('sha')
             if sha:
+                set_cached_version(owner, repo, version, sha)
                 return version, sha
         
         # Fallback: try to get SHA from the tag reference directly
@@ -59,6 +122,7 @@ def get_latest_version_and_sha(owner: str, repo: str) -> Optional[Tuple[str, str
             ref_data = ref_response.json()
             sha = ref_data.get('object', {}).get('sha')
             if sha:
+                set_cached_version(owner, repo, version, sha)
                 return version, sha
         
         return None
