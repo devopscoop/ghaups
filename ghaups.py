@@ -113,7 +113,7 @@ def scan_action_with_trivy(owner: str, repo: str, sha: str) -> bool:
         return False
 
 
-def parse_action_reference(uses_line: str) -> Optional[Tuple[str, str, str]]:
+def parse_action_reference(uses_line: str) -> Optional[Tuple[str, str, str, Optional[str]]]:
     """
     Parse a GitHub Action reference from a 'uses' line.
     
@@ -121,15 +121,16 @@ def parse_action_reference(uses_line: str) -> Optional[Tuple[str, str, str]]:
         uses_line: The line containing the action reference
         
     Returns:
-        Tuple of (owner, repo, current_version) or None if not a GitHub action
+        Tuple of (owner, repo, ref, version_comment) or None if not a GitHub action
+        ref is the SHA or version tag, version_comment is the version from # comment if present
     """
-    # Match patterns like: owner/repo@version or owner/repo@sha #version
-    match = re.search(r'uses:\s+["\']?([^/]+)/([^@\s"\']+)@([^"\'\s#]+)', uses_line)
+    # Match patterns like: owner/repo@version or owner/repo@sha # version
+    match = re.search(r'uses:\s+["\']?([^/]+)/([^@\s"\']+)@([^"\'\s#]+)(?:\s*#\s*(\S+))?', uses_line)
     if match:
-        owner, repo, version = match.groups()
+        owner, repo, ref, version_comment = match.groups()
         # Only process GitHub actions (not local actions or Docker actions)
         if '.' not in owner:  # Simple check to exclude Docker actions
-            return owner, repo, version
+            return owner, repo, ref, version_comment
     
     return None
 
@@ -166,27 +167,35 @@ def update_workflow_file(file_path: Path, scan: bool = False) -> Tuple[int, int]
         if 'uses:' in line:
             action_info = parse_action_reference(line)
             if action_info:
-                owner, repo, current_version = action_info
-                print(f"  Found action: {owner}/{repo}@{current_version}")
+                owner, repo, current_ref, version_comment = action_info
+                
+                # Display found action with version comment if present
+                if version_comment:
+                    print(f"  Found action: {owner}/{repo}@{current_ref} # {version_comment}")
+                else:
+                    print(f"  Found action: {owner}/{repo}@{current_ref}")
                 
                 result = get_latest_version_and_sha(owner, repo)
                 if result:
                     latest_version, sha = result
-                    if latest_version != current_version:
+                    
+                    # Check if already up to date (same SHA and version)
+                    is_same_sha = current_ref == sha
+                    is_same_version = version_comment == latest_version if version_comment else current_ref == latest_version
+                    
+                    if is_same_sha and is_same_version:
+                        print(f"  Already up to date")
+                        # Add to scan list with current SHA
+                        actions_to_scan.append((owner, repo, sha))
+                    else:
                         print(f"  Updating to: {owner}/{repo}@{sha} # {latest_version}")
                         # Replace the version in the line with SHA and version comment
-                        old_ref = f"{owner}/{repo}@{current_version}"
+                        old_ref = f"{owner}/{repo}@{current_ref}"
                         new_ref = f"{owner}/{repo}@{sha} # {latest_version}"
-                        modified_line = re.sub(f"{old_ref}.*", new_ref, line)
+                        modified_line = re.sub(f"{re.escape(old_ref)}.*", new_ref, line)
                         updated_count += 1
                         # Add to scan list with new SHA
                         actions_to_scan.append((owner, repo, sha))
-                    else:
-                        print(f"  Already up to date: {owner}/{repo}@{current_version}")
-                        # Still scan current version
-                        # Extract SHA from current version if it's already a SHA
-                        if len(current_version) == 40 and all(c in '0123456789abcdef' for c in current_version):
-                            actions_to_scan.append((owner, repo, current_version))
                 else:
                     print(f"  Could not determine latest version for {owner}/{repo}")
         
