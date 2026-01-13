@@ -7,6 +7,7 @@ A simple CLI tool that updates GitHub Actions in workflow files to their latest 
 
 import sys
 import re
+import argparse
 import requests
 import subprocess
 from pathlib import Path
@@ -133,12 +134,13 @@ def parse_action_reference(uses_line: str) -> Optional[Tuple[str, str, str]]:
     return None
 
 
-def update_workflow_file(file_path: Path) -> Tuple[int, int]:
+def update_workflow_file(file_path: Path, scan: bool = False) -> Tuple[int, int]:
     """
-    Update a single workflow file with the latest action versions and scan for vulnerabilities.
+    Update a single workflow file with the latest action versions and optionally scan for vulnerabilities.
     
     Args:
         file_path: Path to the workflow file
+        scan: Whether to scan actions for vulnerabilities using Trivy
         
     Returns:
         Tuple of (actions updated, actions with vulnerabilities)
@@ -200,8 +202,8 @@ def update_workflow_file(file_path: Path) -> Tuple[int, int]:
             print(f"Error writing {file_path}: {e}")
             return 0, 0
     
-    # Scan actions for vulnerabilities
-    if actions_to_scan:
+    # Scan actions for vulnerabilities (only if --scan flag is used)
+    if scan and actions_to_scan:
         print(f"  Scanning {len(actions_to_scan)} actions for vulnerabilities...")
         for owner, repo, sha in actions_to_scan:
             scan_passed = scan_action_with_trivy(owner, repo, sha)
@@ -213,25 +215,29 @@ def update_workflow_file(file_path: Path) -> Tuple[int, int]:
 
 def main():
     """Main entry point for ghaups CLI."""
-    if len(sys.argv) < 2:
-        print("Usage: python ghaups.py <workflow_file1> [workflow_file2] ...")
-        print("\nExample:")
-        print("  python ghaups.py .github/workflows/ci.yml")
-        print("  python ghaups.py workflow1.yml workflow2.yml")
-        print("\nThis tool will:")
-        print("  1. Update GitHub Actions to latest versions")
-        print("  2. Pin them using SHA commits with version comments")
-        print("  3. Scan each action for HIGH/CRITICAL vulnerabilities using Trivy")
-        sys.exit(1)
+    parser = argparse.ArgumentParser(
+        prog='ghaups',
+        description='GitHub Actions Update, Pin, and Scan - Updates GitHub Actions to latest versions and pins them using SHA commits.',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog='''
+Examples:
+  python ghaups.py .github/workflows/ci.yml
+  python ghaups.py workflow1.yml workflow2.yml
+  python ghaups.py --scan .github/workflows/ci.yml
+'''
+    )
+    parser.add_argument('files', nargs='+', help='Workflow file(s) to process')
+    parser.add_argument('--scan', action='store_true', help='Scan actions for HIGH/CRITICAL vulnerabilities using Trivy')
     
-    workflow_files = sys.argv[1:]
+    args = parser.parse_args()
+    
     total_updated = 0
     total_vulnerabilities = 0
     
     print("ghaups (GitHub Actions Update, Pin, and Scan)")
     print("=" * 50)
     
-    for file_path_str in workflow_files:
+    for file_path_str in args.files:
         file_path = Path(file_path_str)
         
         if not file_path.exists():
@@ -242,20 +248,23 @@ def main():
             print(f"Error: Not a file: {file_path}")
             continue
         
-        updated_count, vuln_count = update_workflow_file(file_path)
+        updated_count, vuln_count = update_workflow_file(file_path, scan=args.scan)
         total_updated += updated_count
         total_vulnerabilities += vuln_count
         print()  # Empty line between files
     
     print(f"Summary:")
-    print(f"  • Updated {total_updated} actions across {len(workflow_files)} files")
-    print(f"  • Found {total_vulnerabilities} actions with HIGH/CRITICAL vulnerabilities")
+    print(f"  • Updated {total_updated} actions across {len(args.files)} files")
     
-    if total_vulnerabilities > 0:
-        print(f"\n⚠ Warning: {total_vulnerabilities} actions have security vulnerabilities!")
-        sys.exit(1)
+    if args.scan:
+        print(f"  • Found {total_vulnerabilities} actions with HIGH/CRITICAL vulnerabilities")
+        if total_vulnerabilities > 0:
+            print(f"\n⚠ Warning: {total_vulnerabilities} actions have security vulnerabilities!")
+            sys.exit(1)
+        else:
+            print(f"\n✓ All actions are secure!")
     else:
-        print(f"\n✓ All actions are secure!")
+        print(f"\n✓ Done! Use --scan to check for vulnerabilities.")
 
 
 if __name__ == "__main__":
