@@ -1,7 +1,7 @@
 [project]
-name = "repl-nix-workspace"
+name = "ghaups"
 version = "0.1.0"
-description = "Add your description here"
+description = "A simple CLI tool that updates GitHub Actions in workflow files to their latest versions."
 requires-python = ">=3.11"
 dependencies = [
     "requests>=2.32.4",

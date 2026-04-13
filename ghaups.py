@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-ghaups (GitHub Actions Update, Pin, and Scan)
+GHAUPS (GitHub Actions Update, Pin, and Scan)
 
 A simple CLI tool that updates GitHub Actions in workflow files to their latest versions.
 """
@@ -186,7 +186,7 @@ def scan_action_with_trivy(owner: str, repo: str, sha: str) -> bool:
             '--scanners',
             'vuln',
             '--severity',
-            'HIGH,CRITICAL',
+            'CRITICAL', # 'HIGH,CRITICAL',
             '--exit-code',
             '1',
             '--commit',
@@ -341,15 +341,19 @@ def update_workflow_file(
 def main():
     """Main entry point for ghaups CLI."""
     parser = argparse.ArgumentParser(
-        prog='ghaups',
-        description='GitHub Actions Update, Pin, and Scan',
+        prog='ghaups.py',
+        description="""
+GitHub Actions Update, Pin, and Scan
+
+A simple CLI tool that updates GitHub Actions in workflow files to their latest versions.
+""",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  python ghaups.py .github/workflows/ci.yml
-  python ghaups.py --log-level debug workflow.yml
-  python ghaups.py --no-scan .github/workflows/ci.yml
-  python ghaups.py --no-update .github/workflows/ci.yml
+  ghaups.py .github/workflows/ci.yml
+  ghaups.py --log-level debug workflow.yml
+  ghaups.py --no-scan .github/workflows/ci.yml
+  ghaups.py --no-update .github/workflows/ci.yml
 """,
     )
     parser.add_argument('files', nargs='+', help='Workflow file(s) to process')
