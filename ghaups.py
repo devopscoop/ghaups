@@ -92,9 +92,10 @@ def set_cached_version(owner: str, repo: str, version: str, sha: str) -> None:
     cache[key] = {
         'version': version,
         'sha': sha,
-        'timestamp': datetime.now().isoformat()
+        'timestamp': datetime.now().isoformat(),
     }
     save_cache(cache)
+
 
 def get_sha_for_tag(owner: str, repo: str, tag: str) -> Optional[str]:
     """Get the SHA for a specific tag."""
@@ -180,12 +181,17 @@ def scan_action_with_trivy(owner: str, repo: str, sha: str) -> bool:
     try:
         repo_url = f"https://github.com/{owner}/{repo}"
         cmd = [
-            'trivy', 'repository',
-            '--scanners', 'vuln',
-            '--severity', 'HIGH,CRITICAL',
-            '--exit-code', '1',
-            '--commit', sha,
-            repo_url
+            'trivy',
+            'repository',
+            '--scanners',
+            'vuln',
+            '--severity',
+            'HIGH,CRITICAL',
+            '--exit-code',
+            '1',
+            '--commit',
+            sha,
+            repo_url,
         ]
 
         logger.debug(f"Scanning {owner}/{repo}@{sha[:12]}")
@@ -211,9 +217,13 @@ def scan_action_with_trivy(owner: str, repo: str, sha: str) -> bool:
         return False
 
 
-def parse_action_reference(uses_line: str) -> Optional[Tuple[str, str, str, Optional[str]]]:
+def parse_action_reference(
+    uses_line: str,
+) -> Optional[Tuple[str, str, str, Optional[str]]]:
     """Parse a GitHub Action reference from a 'uses' line."""
-    match = re.search(r'uses:\s+["\']?([^/]+)/([^@\s"\']+)@([^"\'\s#]+)(?:\s*#\s*(\S+))?', uses_line)
+    match = re.search(
+        r'uses:\s+["\']?([^/]+)/([^@\s"\']+)@([^"\'\s#]+)(?:\s*#\s*(\S+))?', uses_line
+    )
     if match:
         owner, repo, ref, version_comment = match.groups()
         if '.' not in owner:
@@ -221,7 +231,9 @@ def parse_action_reference(uses_line: str) -> Optional[Tuple[str, str, str, Opti
     return None
 
 
-def update_workflow_file(file_path: Path, scan: bool = False, no_update: bool = False) -> Tuple[int, int]:
+def update_workflow_file(
+    file_path: Path, scan: bool = False, no_update: bool = False
+) -> Tuple[int, int]:
     """Update a single workflow file with the latest action versions."""
     logger.debug(f"Processing {file_path}")
 
@@ -246,7 +258,9 @@ def update_workflow_file(file_path: Path, scan: bool = False, no_update: bool = 
                 owner, repo, current_ref, version_comment = action_info
 
                 if version_comment:
-                    logger.debug(f"Found {owner}/{repo}@{current_ref} # {version_comment}")
+                    logger.debug(
+                        f"Found {owner}/{repo}@{current_ref} # {version_comment}"
+                    )
                 else:
                     logger.debug(f"Found {owner}/{repo}@{current_ref}")
 
@@ -259,34 +273,50 @@ def update_workflow_file(file_path: Path, scan: bool = False, no_update: bool = 
                     else:
                         sha = get_sha_for_tag(owner, repo, current_ref)
                         if sha:
-                            logger.info(f"PIN: {owner}/{repo}@{current_ref} -> {sha[:12]} # {current_ref}")
+                            logger.info(
+                                f"PIN: {owner}/{repo}@{current_ref} -> {sha[:12]} # {current_ref}"
+                            )
                             old_ref = f"{owner}/{repo}@{current_ref}"
                             new_ref = f"{owner}/{repo}@{sha} # {current_ref}"
-                            modified_line = re.sub(f"{re.escape(old_ref)}.*", new_ref, line)
+                            modified_line = re.sub(
+                                f"{re.escape(old_ref)}.*", new_ref, line
+                            )
                             updated_count += 1
                             actions_to_scan.append((owner, repo, sha))
                         else:
-                            logger.warning(f"Cannot find SHA for {owner}/{repo}@{current_ref}")
+                            logger.warning(
+                                f"Cannot find SHA for {owner}/{repo}@{current_ref}"
+                            )
                 else:
                     result = get_latest_version_and_sha(owner, repo)
                     if result:
                         latest_version, sha = result
 
                         is_same_sha = current_ref == sha
-                        is_same_version = version_comment == latest_version if version_comment else current_ref == latest_version
+                        is_same_version = (
+                            version_comment == latest_version
+                            if version_comment
+                            else current_ref == latest_version
+                        )
 
                         if is_same_sha and is_same_version:
                             logger.debug(f"{owner}/{repo}: up to date")
                             actions_to_scan.append((owner, repo, sha))
                         else:
-                            logger.info(f"UPDATE: {owner}/{repo} -> {sha[:12]} # {latest_version}")
+                            logger.info(
+                                f"UPDATE: {owner}/{repo} -> {sha[:12]} # {latest_version}"
+                            )
                             old_ref = f"{owner}/{repo}@{current_ref}"
                             new_ref = f"{owner}/{repo}@{sha} # {latest_version}"
-                            modified_line = re.sub(f"{re.escape(old_ref)}.*", new_ref, line)
+                            modified_line = re.sub(
+                                f"{re.escape(old_ref)}.*", new_ref, line
+                            )
                             updated_count += 1
                             actions_to_scan.append((owner, repo, sha))
                     else:
-                        logger.warning(f"Cannot determine latest version for {owner}/{repo}")
+                        logger.warning(
+                            f"Cannot determine latest version for {owner}/{repo}"
+                        )
 
         modified_lines.append(modified_line)
 
@@ -314,18 +344,31 @@ def main():
         prog='ghaups',
         description='GitHub Actions Update, Pin, and Scan',
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog='''
+        epilog="""
 Examples:
   python ghaups.py .github/workflows/ci.yml
   python ghaups.py --log-level debug workflow.yml
-  python ghaups.py --scan .github/workflows/ci.yml
+  python ghaups.py --no-scan .github/workflows/ci.yml
   python ghaups.py --no-update .github/workflows/ci.yml
-'''
+""",
     )
     parser.add_argument('files', nargs='+', help='Workflow file(s) to process')
-    parser.add_argument('--scan', action='store_true', help='Scan actions for vulnerabilities using Trivy')
-    parser.add_argument('--no-update', action='store_true', help='Pin to current version without checking for updates')
-    parser.add_argument('--log-level', choices=['debug', 'info', 'warning', 'error'], default='info', help='Set log level (default: info)')
+    parser.add_argument(
+        '--no-scan',
+        action='store_true',
+        help='Skip scanning actions for vulnerabilities using Trivy',
+    )
+    parser.add_argument(
+        '--no-update',
+        action='store_true',
+        help='Pin to current version without checking for updates',
+    )
+    parser.add_argument(
+        '--log-level',
+        choices=['debug', 'info', 'warning', 'error'],
+        default='info',
+        help='Set log level (default: info)',
+    )
 
     args = parser.parse_args()
 
@@ -345,14 +388,16 @@ Examples:
             logger.error(f"Not a file: {file_path}")
             continue
 
-        updated_count, vuln_count = update_workflow_file(file_path, scan=args.scan, no_update=args.no_update)
+        updated_count, vuln_count = update_workflow_file(
+            file_path, scan=not args.no_scan, no_update=args.no_update
+        )
         total_updated += updated_count
         total_vulnerabilities += vuln_count
 
     if total_updated > 0:
         logger.info(f"TOTAL: {total_updated} actions updated")
 
-    if args.scan and total_vulnerabilities > 0:
+    if not args.no_scan and total_vulnerabilities > 0:
         logger.warning(f"{total_vulnerabilities} actions have vulnerabilities")
         sys.exit(1)
 
