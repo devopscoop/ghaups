@@ -43,20 +43,7 @@ Examples:
 
 ## GitHub Action
 
-This tool can also be used as a GitHub Action:
-
-```yaml
-jobs:
-  pin-actions:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: devopscoop/ghaups@main
-        with:
-          files: .github/workflows/*.yml
-```
-
-A runnable example is available at `.github/workflows/ghaups-daily.yml` — it pins actions daily via cron and on `workflow_dispatch`, then opens a PR with the changes.
+See [`.github/workflows/ghaups-daily.yml`](.github/workflows/ghaups-daily.yml) for a runnable example — it pins actions daily via cron and on `workflow_dispatch`, then opens a PR.
 
 ### Action inputs
 
