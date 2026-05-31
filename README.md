@@ -41,6 +41,30 @@ Examples:
   ghaups.py --no-update .github/workflows/ci.yml
 ```
 
+## GitHub Action
+
+This tool can also be used as a GitHub Action:
+
+```yaml
+jobs:
+  pin-actions:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: devopscoop/ghaups@main
+        with:
+          files: .github/workflows/*.yml
+```
+
+### Action inputs
+
+| Input       | Required | Default | Description |
+|-------------|----------|---------|-------------|
+| `files`     | yes      | —       | Space-separated workflow file paths relative to repo root |
+| `no-scan`   | no       | `false` | Skip Trivy vulnerability scanning |
+| `no-update` | no       | `false` | Pin current version to SHA without update check |
+| `log-level` | no       | `info`  | Log level: `debug`, `info`, `warning`, `error` |
+
 ## Example Output
 
 ```

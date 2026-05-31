@@ -1,0 +1,25 @@
+name: 'ghaups'
+description: 'Update, Pin, and Scan GitHub Actions in workflow files'
+author: 'devopscoop'
+branding:
+  icon: 'shield'
+  color: 'blue'
+inputs:
+  files:
+    description: 'Workflow file(s) to process (space-separated paths relative to repository root)'
+    required: true
+  no-scan:
+    description: 'Skip scanning actions for vulnerabilities'
+    required: false
+    default: 'false'
+  no-update:
+    description: 'Pin to current version without checking for updates'
+    required: false
+    default: 'false'
+  log-level:
+    description: 'Log level (debug, info, warning, error)'
+    required: false
+    default: 'info'
+runs:
+  using: 'docker'
+  image: 'Dockerfile'
