@@ -33,9 +33,11 @@ uv run ghaups.py --log-level debug <files...>
 ```bash
 git tag 0.1.0
 git push origin 0.1.0
+git push github.com 0.1.0
+git push codeberg.org 0.1.0
 ```
 
-This pushes the tag to the remote. The release workflow in `.github/workflows/release.yml` triggers on the push, creates a GitHub Release, and force-updates the `0` and `0.1` floating tags forward.
+This pushes the tag to all remotes. The release workflow in `.github/workflows/release.yml` triggers on the push, creates a GitHub Release, and force-updates the `0` and `0.1` floating tags forward.
 
 ## How it works
 
