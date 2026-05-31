@@ -41,6 +41,48 @@ Examples:
   ghaups.py --no-update .github/workflows/ci.yml
 ```
 
+## Repository Setup
+
+The daily workflow creates a PR that modifies `.github/workflows/` files. The default `GITHUB_TOKEN` **cannot** push changes to workflow files — it has no `workflows` permission and there is no way to grant one ([GitHub restriction](https://docs.github.com/en/actions/security-guides/automatic-token-authentication#using-the-github_token-in-a-workflow)). Instead of a personal access token, the workflow mints a short-lived token from an **organization GitHub App**, via [`actions/create-github-app-token`](https://github.com/actions/create-github-app-token). App tokens carry the `workflows` permission, expire automatically (~1 hour), and PRs they open still trigger downstream CI. One app set up at the org level covers every repo in the org.
+
+### Creating the GitHub App
+
+1. Go to **Organization Settings → Developer settings → GitHub Apps → New GitHub App** (`https://github.com/organizations/<org>/settings/apps`).
+2. Set:
+   - **GitHub App name:** e.g. `ghaups-daily` (must be globally unique).
+   - **Homepage URL:** anything (e.g. your org or repo URL).
+   - **Webhook:** uncheck **Active** (no webhook needed).
+   - **Permissions → Repository permissions:**
+     - `Contents` → `Read and write`
+     - `Pull requests` → `Read and write`
+     - `Workflows` → `Read and write`  ← this is the one a PAT/`GITHUB_TOKEN` can't give you
+3. Under **Where can this GitHub App be installed?** choose **Only on this account**, then **Create GitHub App**.
+4. On the app's page, note the **App ID**, then under **Private keys** click **Generate a private key** and download the `.pem` file.
+5. In the left sidebar click **Install App** → install it on the org → either **All repositories** or **Only select repositories** (include any repo that runs this workflow).
+
+### Wiring it into the org
+
+In the org, go to **Organization Settings → Secrets and variables → Actions**:
+
+- **Variables** tab → **New organization variable:** name `GHAUPS_APP_ID`, value = the App ID from step 4.
+- **Secrets** tab → **New organization secret:** name `GHAUPS_APP_PRIVATE_KEY`, value = the **entire contents** of the downloaded `.pem` file (including the `-----BEGIN/END-----` lines).
+- For both, set the **repository access** to the repos that need them (or **All repositories**).
+
+That's it — the workflow reads `vars.GHAUPS_APP_ID` and `secrets.GHAUPS_APP_PRIVATE_KEY` (org-level values are visible to every repo they're shared with) and needs no PAT.
+
+## GitHub Action
+
+See [`.github/workflows/ghaups-daily.yml`](.github/workflows/ghaups-daily.yml) for a runnable example — it pins actions daily via cron and on `workflow_dispatch`, then opens a PR.
+
+### Action inputs
+
+| Input       | Required | Default | Description |
+|-------------|----------|---------|-------------|
+| `files`     | yes      | —       | Space-separated workflow file paths relative to repo root |
+| `no-scan`   | no       | `false` | Skip Trivy vulnerability scanning |
+| `no-update` | no       | `false` | Pin current version to SHA without update check |
+| `log-level` | no       | `info`  | Log level: `debug`, `info`, `warning`, `error` |
+
 ## Example Output
 
 ```

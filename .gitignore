@@ -43,6 +43,7 @@ htmlcov/
 .coverage
 .coverage.*
 .cache
+/.trivy-cache/
 nosetests.xml
 coverage.xml
 *.cover
@@ -214,5 +215,3 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
-
-.pre-commit-config.yaml
