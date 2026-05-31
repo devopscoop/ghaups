@@ -25,53 +25,19 @@ jobs:
         with:
           files: .github/workflows/*.yml
 
-      # TODO: This seems overly complex. Investigate later.
       - name: Create pull request
         run: |
-          set -euo pipefail
-          REPO="${{ github.repository }}"
-
-          MODIFIED=$(git diff --name-only HEAD)
-          if [ -z "$MODIFIED" ]; then
-            echo "No changes to commit"
-            exit 0
-          fi
-
-          BASE_SHA=$(gh api "repos/$REPO/git/refs/heads/main" --jq '.object.sha')
-          BASE_TREE=$(gh api "repos/$REPO/git/commits/$BASE_SHA" --jq '.tree.sha')
-
-          ENTRIES="[]"
-          while read -r file; do
-            CONTENT=$(base64 -w0 "$file")
-            BLOB=$(gh api "repos/$REPO/git/blobs" \
-              -f content="$CONTENT" \
-              -f encoding=base64 \
-              --jq '.sha')
-            ENTRIES=$(echo "$ENTRIES" | \
-              jq -c --arg path "$file" --arg sha "$BLOB" \
-                '. += [{"path": $path, "mode": "100644", "type": "blob", "sha": $sha}]')
-          done < <(printf '%s\n' "$MODIFIED")
-
-          TREE_SHA=$(jq -n \
-            --arg base_tree "$BASE_TREE" \
-            --argjson entries "$ENTRIES" \
-            '{base_tree: $base_tree, tree: $entries}' | \
-            gh api "repos/$REPO/git/trees" --input - --jq '.sha')
-
-          COMMIT_SHA=$(gh api "repos/$REPO/git/commits" \
-            -f message="chore: pin GitHub Actions to SHA refs" \
-            -f tree="$TREE_SHA" \
-            -f "parents[]=$BASE_SHA" \
-            --jq '.sha')
-
-          gh api "repos/$REPO/git/refs" \
-            -f ref="refs/heads/ghaups/pin-actions" \
-            -f sha="$COMMIT_SHA" > /dev/null
-
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git checkout -b ghaups/pin-actions
+          git add .
+          git diff --cached --quiet && echo "No changes" && exit 0
+          git commit -m 'chore: pin GitHub Actions to SHA refs'
+          git push origin ghaups/pin-actions
           gh pr create \
             --title 'chore: pin GitHub Actions to SHA refs' \
             --body 'Automated daily pinning of GitHub Actions to commit SHAs.' \
             --head ghaups/pin-actions \
             --base main
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GH_PAT }}
