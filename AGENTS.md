@@ -61,3 +61,4 @@ This pushes the tag to all remotes. The release workflow in `.github/workflows/r
 - GitHub API has rate limits; the 1-hour cache helps but hitting many actions may still fail.
 - Only scans actions after resolving SHA (not unpinned tag refs).
 - No dry-run mode; files are written in-place on update.
+- **Never use `git commit --no-verify`** — pre-commit hooks (zizmor, etc.) enforce SHA pinning and other policies.
