@@ -27,18 +27,15 @@ uv run ghaups.py --log-level debug <files...>
 - **Cache:** `~/.ghaups_cache.json` (1-hour TTL) to avoid GitHub API rate limits.
 - **GitHub Action:** `action.yml` + `Dockerfile` + `entrypoint.sh` — Docker-based action that maps `INPUT_*` env vars to CLI args.
 - **Release:** Push `MAJOR.MINOR.PATCH` tag → workflow creates a GitHub Release and moves `MAJOR` / `MAJOR.MINOR` tags forward.
-- Push must be to **all three remotes** (GitLab, GitHub, Codeberg) since the release workflow only runs on the remote(s) with it configured.
 
 ## Release
 
 ```bash
 git tag 0.1.0
 git push origin 0.1.0
-git push github.com 0.1.0
-git push codeberg.org 0.1.0
 ```
 
-This pushes the tag to all three remotes. The release workflow in `.github/workflows/release.yml` triggers on the push, creates a GitHub Release, and force-updates the `0` and `0.1` floating tags forward.
+This pushes the tag to the remote. The release workflow in `.github/workflows/release.yml` triggers on the push, creates a GitHub Release, and force-updates the `0` and `0.1` floating tags forward.
 
 ## How it works
 
