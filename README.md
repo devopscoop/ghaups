@@ -56,6 +56,8 @@ jobs:
           files: .github/workflows/*.yml
 ```
 
+A runnable example is available at `.github/workflows/ghaups-daily.yml` — it pins actions daily via cron and on `workflow_dispatch`, then opens a PR with the changes.
+
 ### Action inputs
 
 | Input       | Required | Default | Description |
