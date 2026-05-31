@@ -15,7 +15,7 @@ jobs:
   pin-and-scan:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
 
@@ -31,7 +31,7 @@ jobs:
             trivy-db-
 
       - name: Pin actions and scan for vulnerabilities
-        uses: devopscoop/ghaups@0a76743c80ebab123a55ec25e2ed390be9cfbb16 # v0.1.1
+        uses: devopscoop/ghaups@0a76743c80ebab123a55ec25e2ed390be9cfbb16 # 0.1.1
         with:
           files: .github/workflows/*.yml
         # The action mounts $GITHUB_WORKSPACE at /github/workspace, so point
