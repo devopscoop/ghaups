@@ -21,7 +21,7 @@ jobs:
         uses: aquasecurity/setup-trivy@99dbd3bd00b86d82e52c37f2b6f7d20825f4c50f # v0.2.0
 
       - name: Pin actions and scan for vulnerabilities
-        uses: devopscoop/ghaups@9324f6225cdc990c75ddf87a396681638a914ecf # v0.1.0
+        uses: devopscoop/ghaups@0a76743c80ebab123a55ec25e2ed390be9cfbb16 # v0.1.1
         with:
           files: .github/workflows/*.yml
 
