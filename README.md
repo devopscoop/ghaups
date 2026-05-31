@@ -41,6 +41,24 @@ Examples:
   ghaups.py --no-update .github/workflows/ci.yml
 ```
 
+## Repository Setup
+
+The daily workflow creates a PR that modifies `.github/workflows/` files. The default `GITHUB_TOKEN` cannot push workflow file changes ([GitHub restriction](https://docs.github.com/en/actions/security-guides/automatic-token-authentication#using-the-github_token-in-a-workflow)). You need a **fine-grained PAT** with the correct scopes.
+
+### Creating a PAT
+
+1. Go to **GitHub Settings → [Developer settings](https://github.com/settings/tokens?type=beta) → Fine-grained tokens**.
+2. Click **Generate new token**.
+3. Set:
+   - **Token name:** `ghaups-daily`
+   - **Repository access:** `Only select repositories` → select this repo.
+   - **Permissions → Repository permissions:**
+     - `Contents` → `Write`
+     - `Pull requests` → `Write`
+4. Click **Generate token** and copy the token value.
+5. In your repo: **Settings → Secrets and variables → Actions → New repository secret**.
+6. Name: `GH_PAT`, paste the token, click **Add secret**.
+
 ## GitHub Action
 
 See [`.github/workflows/ghaups-daily.yml`](.github/workflows/ghaups-daily.yml) for a runnable example — it pins actions daily via cron and on `workflow_dispatch`, then opens a PR.
