@@ -26,6 +26,7 @@ uv run ghaups.py --log-level debug <files...>
 - **No CI, no pre-commit, no typecheck or lint config.**
 - **Cache:** `~/.ghaups_cache.json` (1-hour TTL) to avoid GitHub API rate limits.
 - **GitHub Action:** `action.yml` + `Dockerfile` + `entrypoint.sh` — Docker-based action that maps `INPUT_*` env vars to CLI args.
+- **Release:** Push `MAJOR.MINOR.PATCH` tag → workflow creates a GitHub Release and moves `MAJOR` / `MAJOR.MINOR` tags forward.
 
 ## How it works
 
