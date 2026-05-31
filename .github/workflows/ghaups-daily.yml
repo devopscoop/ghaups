@@ -17,16 +17,26 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Install Trivy
+        uses: aquasecurity/setup-trivy@99dbd3bd00b86d82e52c37f2b6f7d20825f4c50f # v0.2.0
+
       - name: Pin actions and scan for vulnerabilities
-        uses: devopscoop/ghaups@0.1
+        uses: devopscoop/ghaups@9324f6225cdc990c75ddf87a396681638a914ecf # v0.1.0
         with:
           files: .github/workflows/*.yml
 
       - name: Create pull request
-        uses: peter-evans/create-pull-request@22a9089034f40e5a961c8808d113e2c98fb63676 # v7
-        with:
-          commit-message: 'chore: pin GitHub Actions to SHA refs'
-          title: 'chore: pin GitHub Actions to SHA refs'
-          body: 'Automated daily pinning of GitHub Actions to commit SHAs.'
-          branch: ghaups/pin-actions
-          delete-branch: true
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git checkout -b ghaups/pin-actions
+          git add .
+          git commit -m 'chore: pin GitHub Actions to SHA refs'
+          git push origin ghaups/pin-actions
+          gh pr create \
+            --title 'chore: pin GitHub Actions to SHA refs' \
+            --body 'Automated daily pinning of GitHub Actions to commit SHAs.' \
+            --head ghaups/pin-actions \
+            --base main
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
