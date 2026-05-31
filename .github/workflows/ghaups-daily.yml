@@ -18,7 +18,7 @@ jobs:
           persist-credentials: false
 
       - name: Pin actions and scan for vulnerabilities
-        uses: ./
+        uses: devopscoop/ghaups@main
         with:
           files: .github/workflows/*.yml
 
