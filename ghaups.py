@@ -21,6 +21,11 @@ CACHE_EXPIRY_HOURS = 1
 
 logger = logging.getLogger('ghaups')
 
+# In-memory cache loaded once per run; persisted once at exit. Avoids
+# re-reading/re-writing the cache file on every action lookup.
+_cache_data: Optional[dict] = None
+_cache_dirty = False
+
 
 def setup_logging(level: str) -> None:
     """Configure logging with WARNING+ to stderr, others to stdout."""
@@ -70,9 +75,23 @@ def save_cache(cache: dict) -> None:
         pass
 
 
+def _get_cache() -> dict:
+    """Return the in-memory cache, loading it from disk on first use."""
+    global _cache_data
+    if _cache_data is None:
+        _cache_data = load_cache()
+    return _cache_data
+
+
+def flush_cache() -> None:
+    """Persist the in-memory cache to disk if it has unsaved changes."""
+    if _cache_dirty and _cache_data is not None:
+        save_cache(_cache_data)
+
+
 def get_cached_version(owner: str, repo: str) -> Optional[Tuple[str, str]]:
     """Get version info from cache if available and not expired."""
-    cache = load_cache()
+    cache = _get_cache()
     key = f"{owner}/{repo}"
 
     if key in cache:
@@ -86,40 +105,29 @@ def get_cached_version(owner: str, repo: str) -> Optional[Tuple[str, str]]:
 
 
 def set_cached_version(owner: str, repo: str, version: str, sha: str) -> None:
-    """Save version info to cache."""
-    cache = load_cache()
+    """Save version info to the in-memory cache (persisted at exit)."""
+    global _cache_dirty
+    cache = _get_cache()
     key = f"{owner}/{repo}"
     cache[key] = {
         'version': version,
         'sha': sha,
         'timestamp': datetime.now().isoformat(),
     }
-    save_cache(cache)
+    _cache_dirty = True
 
 
 def get_sha_for_tag(owner: str, repo: str, tag: str) -> Optional[str]:
-    """Get the SHA for a specific tag."""
+    """Get the SHA for a specific tag, trying both git ref endpoints."""
     try:
-        api_url = f"https://api.github.com/repos/{owner}/{repo}/git/ref/tags/{tag}"
-        api_response = requests.get(api_url, timeout=10)
-
-        if api_response.status_code == 200:
-            tag_data = api_response.json()
-            sha = tag_data.get('object', {}).get('sha')
-            if sha:
-                logger.debug(f"{owner}/{repo}: found {tag} @ {sha[:12]}")
-                return sha
-
-        ref_url = f"https://api.github.com/repos/{owner}/{repo}/git/refs/tags/{tag}"
-        ref_response = requests.get(ref_url, timeout=10)
-
-        if ref_response.status_code == 200:
-            ref_data = ref_response.json()
-            sha = ref_data.get('object', {}).get('sha')
-            if sha:
-                logger.debug(f"{owner}/{repo}: found {tag} @ {sha[:12]}")
-                return sha
-
+        for path in ('git/ref/tags', 'git/refs/tags'):
+            url = f"https://api.github.com/repos/{owner}/{repo}/{path}/{tag}"
+            response = requests.get(url, timeout=10)
+            if response.status_code == 200:
+                sha = response.json().get('object', {}).get('sha')
+                if sha:
+                    logger.debug(f"{owner}/{repo}: found {tag} @ {sha[:12]}")
+                    return sha
         return None
     except Exception as e:
         logger.warning(f"Failed to fetch {owner}/{repo} tag {tag}: {e}")
@@ -148,27 +156,10 @@ def get_latest_version_and_sha(owner: str, repo: str) -> Optional[Tuple[str, str
 
         version = match.group(1)
 
-        api_url = f"https://api.github.com/repos/{owner}/{repo}/git/ref/tags/{version}"
-        api_response = requests.get(api_url, timeout=10)
-
-        if api_response.status_code == 200:
-            tag_data = api_response.json()
-            sha = tag_data.get('object', {}).get('sha')
-            if sha:
-                logger.debug(f"{owner}/{repo}: found {version} @ {sha[:12]}")
-                set_cached_version(owner, repo, version, sha)
-                return version, sha
-
-        ref_url = f"https://api.github.com/repos/{owner}/{repo}/git/refs/tags/{version}"
-        ref_response = requests.get(ref_url, timeout=10)
-
-        if ref_response.status_code == 200:
-            ref_data = ref_response.json()
-            sha = ref_data.get('object', {}).get('sha')
-            if sha:
-                logger.debug(f"{owner}/{repo}: found {version} @ {sha[:12]}")
-                set_cached_version(owner, repo, version, sha)
-                return version, sha
+        sha = get_sha_for_tag(owner, repo, version)
+        if sha:
+            set_cached_version(owner, repo, version, sha)
+            return version, sha
 
         return None
     except Exception as e:
@@ -232,9 +223,13 @@ def parse_action_reference(
 
 
 def update_workflow_file(
-    file_path: Path, scan: bool = False, no_update: bool = False
-) -> Tuple[int, int]:
-    """Update a single workflow file with the latest action versions."""
+    file_path: Path, no_update: bool = False
+) -> Tuple[int, List[Tuple[str, str, str]]]:
+    """Update a single workflow file with the latest action versions.
+
+    Returns the number of actions updated and the list of (owner, repo, sha)
+    references seen, for the caller to scan (deduplicated) afterwards.
+    """
     logger.debug(f"Processing {file_path}")
 
     try:
@@ -245,7 +240,6 @@ def update_workflow_file(
         return 0, 0
 
     updated_count = 0
-    vuln_count = 0
     modified_lines = []
     actions_to_scan = []
 
@@ -327,15 +321,9 @@ def update_workflow_file(
             logger.info(f"WROTE: {file_path} ({updated_count} actions)")
         except Exception as e:
             logger.error(f"Cannot write {file_path}: {e}")
-            return 0, 0
+            return 0, []
 
-    if scan and actions_to_scan:
-        logger.debug(f"Scanning {len(actions_to_scan)} actions")
-        for owner, repo, sha in actions_to_scan:
-            if not scan_action_with_trivy(owner, repo, sha):
-                vuln_count += 1
-
-    return updated_count, vuln_count
+    return updated_count, actions_to_scan
 
 
 def main():
@@ -380,30 +368,50 @@ Examples:
 
     total_updated = 0
     total_vulnerabilities = 0
+    scan_targets: List[Tuple[str, str, str]] = []
 
-    for file_path_str in args.files:
-        file_path = Path(file_path_str)
+    try:
+        for file_path_str in args.files:
+            file_path = Path(file_path_str)
 
-        if not file_path.exists():
-            logger.error(f"File not found: {file_path}")
-            continue
+            if not file_path.exists():
+                logger.error(f"File not found: {file_path}")
+                continue
 
-        if not file_path.is_file():
-            logger.error(f"Not a file: {file_path}")
-            continue
+            if not file_path.is_file():
+                logger.error(f"Not a file: {file_path}")
+                continue
 
-        updated_count, vuln_count = update_workflow_file(
-            file_path, scan=not args.no_scan, no_update=args.no_update
-        )
-        total_updated += updated_count
-        total_vulnerabilities += vuln_count
+            updated_count, file_targets = update_workflow_file(
+                file_path, no_update=args.no_update
+            )
+            total_updated += updated_count
+            scan_targets.extend(file_targets)
+    finally:
+        flush_cache()
 
     if total_updated > 0:
         logger.info(f"TOTAL: {total_updated} actions updated")
 
-    if not args.no_scan and total_vulnerabilities > 0:
-        logger.warning(f"{total_vulnerabilities} actions have vulnerabilities")
-        sys.exit(1)
+    if not args.no_scan:
+        # Deduplicate so each unique action is scanned only once, even when it
+        # appears in multiple files or multiple times in one file.
+        seen = set()
+        unique_targets = []
+        for target in scan_targets:
+            if target not in seen:
+                seen.add(target)
+                unique_targets.append(target)
+
+        if unique_targets:
+            logger.debug(f"Scanning {len(unique_targets)} actions")
+        for owner, repo, sha in unique_targets:
+            if not scan_action_with_trivy(owner, repo, sha):
+                total_vulnerabilities += 1
+
+        if total_vulnerabilities > 0:
+            logger.warning(f"{total_vulnerabilities} actions have vulnerabilities")
+            sys.exit(1)
 
 
 if __name__ == '__main__':
