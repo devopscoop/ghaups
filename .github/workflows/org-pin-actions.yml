@@ -1,0 +1,181 @@
+# Reusable workflow: pin GitHub Actions across every repo in an org.
+#
+# Any org can call this from a single host repo (no per-repo workflow files) to
+# fan out over the repos their GitHub App is installed on and open a pinning PR
+# to each. See the "Running ghaups across an entire org" section of the README
+# for a copy-paste caller and the required App setup.
+name: org pin actions
+
+on:
+  workflow_call:
+    inputs:
+      client-id:
+        description: 'GitHub App client ID'
+        required: true
+        type: string
+      owner:
+        description: 'Org/owner to target (defaults to the calling repo owner)'
+        required: false
+        type: string
+        default: ''
+      repo:
+        description: 'Single repo to pin (blank = all repos the App is installed on)'
+        required: false
+        type: string
+        default: ''
+      no-update:
+        description: 'Pin to current SHA without checking for newer versions'
+        required: false
+        type: boolean
+        default: false
+      max-parallel:
+        description: 'Max repos to process concurrently'
+        required: false
+        type: number
+        default: 5
+    secrets:
+      app-private-key:
+        description: 'GitHub App private key (the full .pem contents)'
+        required: true
+
+# The default GITHUB_TOKEN is unused — all access goes through the App token.
+permissions: {}
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    outputs:
+      repos: ${{ steps.list.outputs.repos }}
+    steps:
+      - name: Generate org-wide App token
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ inputs.client-id }}
+          private-key: ${{ secrets.app-private-key }}
+          owner: ${{ inputs.owner != '' && inputs.owner || github.repository_owner }}
+
+      - name: List target repos
+        id: list
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          # Passed via env (not inlined into the script) to avoid template injection.
+          INPUT_REPO: ${{ inputs.repo }}
+        run: |
+          if [ -n "$INPUT_REPO" ]; then
+            repos="$(jq -c -n --arg r "$INPUT_REPO" '[$r]')"
+          else
+            # Only repos the App is actually installed on, skipping archived ones.
+            repos="$(gh api /installation/repositories --paginate \
+              --jq '.repositories[] | select(.archived == false) | .name' \
+              | jq -R -s -c 'split("\n") | map(select(length > 0))')"
+          fi
+          echo "repos=$repos" >> "$GITHUB_OUTPUT"
+
+  pin:
+    needs: discover
+    if: needs.discover.outputs.repos != '[]'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false       # one repo failing shouldn't block the rest
+      max-parallel: ${{ inputs.max-parallel }}
+      matrix:
+        repo: ${{ fromJSON(needs.discover.outputs.repos) }}
+    steps:
+      - name: Generate App token for ${{ matrix.repo }}
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ inputs.client-id }}
+          private-key: ${{ secrets.app-private-key }}
+          owner: ${{ inputs.owner != '' && inputs.owner || github.repository_owner }}
+          # Scope this token to just the one repo this matrix leg touches.
+          repositories: ${{ matrix.repo }}
+          permission-contents: write
+          permission-pull-requests: write
+          permission-workflows: write
+
+      - name: Checkout ${{ matrix.repo }}
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          repository: ${{ inputs.owner != '' && inputs.owner || github.repository_owner }}/${{ matrix.repo }}
+          token: ${{ steps.app-token.outputs.token }}
+          persist-credentials: false
+
+      - name: Collect workflow files
+        id: collect
+        # Build an explicit file list so ghaups never receives an unmatched
+        # glob (the action passes $INPUT_FILES unquoted with no nullglob, so a
+        # literal pattern would error). Repos with no workflows are skipped.
+        run: |
+          shopt -s nullglob
+          files=(.github/workflows/*.yml .github/workflows/*.yaml)
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "found=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "found=true" >> "$GITHUB_OUTPUT"
+            echo "files=${files[*]}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Cache Trivy vulnerability DB
+        if: steps.collect.outputs.found == 'true'
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .trivy-cache
+          # Per-leg key (the DB is identical across repos) so parallel legs
+          # don't collide on save; restore-keys grabs the most recent DB.
+          key: trivy-db-${{ github.run_id }}-${{ strategy.job-index }}
+          restore-keys: |
+            trivy-db-
+
+      - name: Pin actions and scan for vulnerabilities
+        if: steps.collect.outputs.found == 'true'
+        uses: devopscoop/ghaups@0a76743c80ebab123a55ec25e2ed390be9cfbb16 # 0.1.1
+        with:
+          files: ${{ steps.collect.outputs.files }}
+          no-update: ${{ inputs.no-update }}
+        env:
+          TRIVY_CACHE_DIR: /github/workspace/.trivy-cache
+
+      - name: Restore Trivy cache ownership
+        # ghaups runs as root and writes .trivy-cache as root; hand it back so
+        # the actions/cache save post-step can tar it. always() so it runs even
+        # if the scan failed the job on a vulnerability.
+        if: always() && steps.collect.outputs.found == 'true'
+        run: |
+          if [ -d .trivy-cache ]; then
+            sudo chown -R "$(id -u):$(id -g)" .trivy-cache
+          fi
+
+      - name: Create pull request
+        if: steps.collect.outputs.found == 'true'
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          APP_SLUG: ${{ steps.app-token.outputs.app-slug }}
+          OWNER: ${{ inputs.owner != '' && inputs.owner || github.repository_owner }}
+          REPO: ${{ matrix.repo }}
+        run: |
+          # Attribute the commit to the App's bot user (numeric id keeps the
+          # commit verified and linked to the bot account).
+          bot_id="$(gh api "/users/${APP_SLUG}[bot]" --jq .id)"
+          git config user.name "${APP_SLUG}[bot]"
+          git config user.email "${bot_id}+${APP_SLUG}[bot]@users.noreply.github.com"
+          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${OWNER}/${REPO}.git"
+          git checkout -b ghaups/pin-actions
+          git add .github/workflows/*
+          git diff --cached --quiet && { echo "No changes to pin in ${REPO}."; exit 0; }
+          git commit -m 'chore: pin GitHub Actions to SHA refs'
+          # Lease against the remote branch so a stale branch from a previous
+          # run is refreshed without blindly clobbering unexpected changes.
+          git fetch origin ghaups/pin-actions:refs/remotes/origin/ghaups/pin-actions || true
+          git push --force-with-lease=ghaups/pin-actions origin ghaups/pin-actions
+          if [ -n "$(gh pr list --repo "${OWNER}/${REPO}" --head ghaups/pin-actions --state open --json number --jq '.[].number')" ]; then
+            echo "PR already open for ${REPO}; updated its branch."
+          else
+            gh pr create \
+              --repo "${OWNER}/${REPO}" \
+              --title 'chore: pin GitHub Actions to SHA refs' \
+              --body 'Automated pinning of GitHub Actions to commit SHAs.' \
+              --head ghaups/pin-actions \
+              --base "$(gh repo view "${OWNER}/${REPO}" --json defaultBranchRef --jq .defaultBranchRef.name)"
+          fi
