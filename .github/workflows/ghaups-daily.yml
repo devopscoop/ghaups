@@ -66,8 +66,16 @@ jobs:
           git add .github/workflows/*
           git diff --cached --quiet && { echo "No changes to pin."; exit 0; }
           git commit -m 'chore: pin GitHub Actions to SHA refs'
-          # Force-push so a stale branch from a previous run is refreshed in place.
-          git push --force origin ghaups/pin-actions
+          # checkout only fetched the triggering ref, so there is no
+          # remote-tracking ref for the bot branch to lease against. Fetch it
+          # (ignoring failure on the first run, when it does not exist yet) so
+          # --force-with-lease has a valid base to compare against.
+          git fetch origin ghaups/pin-actions:refs/remotes/origin/ghaups/pin-actions || true
+          # Force-push so a stale branch from a previous run is refreshed in
+          # place. --force-with-lease is the safe variant: it refuses to
+          # overwrite the remote branch if it changed unexpectedly since the
+          # fetch above, rather than blindly clobbering it.
+          git push --force-with-lease=ghaups/pin-actions origin ghaups/pin-actions
           if [ -n "$(gh pr list --head ghaups/pin-actions --state open --json number --jq '.[].number')" ]; then
             echo "PR already open for ghaups/pin-actions; updated its branch."
           else

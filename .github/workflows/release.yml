@@ -14,17 +14,28 @@ jobs:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           fetch-tags: true
+          # Don't persist the token in git config; the tag push below
+          # re-authenticates the remote explicitly instead.
+          persist-credentials: false
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@2bb465e97f322d3cb2a965294d483e0d26a67aa9 # v3.0.1
-        with:
-          generate_release_notes: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "${GITHUB_REF_NAME}" --generate-notes
 
       - name: Update major version tag
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
+          # Re-authenticate the remote since checkout no longer persists creds.
+          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
           TAG="${GITHUB_REF_NAME}"
           MAJOR="${TAG%%.*}"
           MINOR="${TAG%.*}"
           git tag -f "${MAJOR}" "${TAG}"
           git tag -f "${MINOR}" "${TAG}"
+          # --force is required here: moving the floating "${MAJOR}"/"${MINOR}"
+          # tags to the new release is a non-fast-forward update, so a plain
+          # push would be rejected. This is the only force push we allow, and
+          # only because re-pointing an existing tag has no non-force path.
           git push origin "${MAJOR}" "${MINOR}" --force

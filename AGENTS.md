@@ -62,3 +62,4 @@ This pushes the tag to all remotes. The release workflow in `.github/workflows/r
 - Only scans actions after resolving SHA (not unpinned tag refs).
 - No dry-run mode; files are written in-place on update.
 - **Never use `git commit --no-verify`** — pre-commit hooks (zizmor, etc.) enforce SHA pinning and other policies.
+- **Never use a plain `git push --force`.** The single exception is moving the floating `0` / `0.1` tags in `.github/workflows/release.yml`, where re-pointing an existing tag has no non-force path. Anywhere a branch must be refreshed (e.g. the bot branch in `ghaups-daily.yml`), use `--force-with-lease` so a concurrent change can't be silently clobbered.
