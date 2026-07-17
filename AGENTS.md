@@ -63,3 +63,13 @@ This pushes the tag to all remotes. The release workflow in `.github/workflows/r
 - No dry-run mode; files are written in-place on update.
 - **Never use `git commit --no-verify`** — pre-commit hooks (zizmor, etc.) enforce SHA pinning and other policies.
 - **Never use a plain `git push --force`.** The single exception is moving the floating `0` / `0.1` tags in `.github/workflows/release.yml`, where re-pointing an existing tag has no non-force path. Anywhere a branch must be refreshed (e.g. the bot branch in `ghaups-daily.yml`), use `--force-with-lease` so a concurrent change can't be silently clobbered.
+
+## Package manifests
+
+This repo ships a `Brewfile` (macOS: `brew bundle`) and a `pkglist.txt` (Arch Linux) that install every CLI tool the repo uses (git, pre-commit, trivy, uv, zizmor). Keep them in sync with the code:
+
+- When you add a tool, script, or a new external command (e.g. a new subprocess in ghaups.py), add the package to BOTH files, with a comment noting what uses it.
+- When a tool stops being used, remove it from both files.
+- Python library dependencies belong in pyproject.toml/uv.lock (managed by uv), NOT in the package manifests.
+- Verify package names before adding them: `brew info <formula>` for Homebrew, and the official repos/AUR for Arch (e.g. Homebrew `gh` is Arch `github-cli`). If a package is AUR-only, note that in pkglist.txt's header instructions.
+- Update the "Install required packages" subsection under Requirements in README.md if the tool list changes.
