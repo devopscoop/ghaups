@@ -13,7 +13,26 @@ The tool:
 
 ## Requirements
 
-- [trivy](https://trivy.dev/docs/latest/getting-started/installation/) for vulnerability scanning
+- [uv](https://docs.astral.sh/uv/) to run the tool (`uv run ghaups.py ...`) — it manages Python (>=3.11) and the `requests` dependency via `uv.lock`
+- [trivy](https://trivy.dev/docs/latest/getting-started/installation/) for vulnerability scanning (skippable with `--no-scan`)
+
+### Install required packages
+
+This repo ships package manifests that install every CLI tool it uses (`git`, `pre-commit`, `trivy`, `uv`, `zizmor`):
+
+- macOS, using [Homebrew](https://brew.sh/) and the `Brewfile`:
+
+  ```shell
+  brew bundle
+  ```
+
+- Arch Linux, using the `pkglist.txt` (all packages are in the official repos):
+
+  ```shell
+  grep -vE '^(#|$)' pkglist.txt | sudo pacman -S --needed -
+  ```
+
+On other operating systems, install the tools listed above manually.
 
 ## Usage
 
